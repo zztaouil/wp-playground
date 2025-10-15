@@ -81,6 +81,43 @@ function getNextLeetTime() {
 }
 
 /**
+ * Fetch a random duck image URL from the API
+ */
+async function getRandomDuckImage() {
+	try {
+		const https = require('https');
+
+		return new Promise((resolve, reject) => {
+			https.get('https://random-d.uk/api/v2/random', (res) => {
+				let data = '';
+
+				res.on('data', (chunk) => {
+					data += chunk;
+				});
+
+				res.on('end', () => {
+					try {
+						const json = JSON.parse(data);
+						if (json.url) {
+							resolve(json.url);
+						} else {
+							reject(new Error('No URL found in response'));
+						}
+					} catch (error) {
+						reject(error);
+					}
+				});
+			}).on('error', (error) => {
+				reject(error);
+			});
+		});
+	} catch (error) {
+		console.error('Error fetching duck image:', error.message);
+		return null;
+	}
+}
+
+/**
  * Send message to all configured groups
  */
 async function sendLeetMessage() {
@@ -88,6 +125,16 @@ async function sendLeetMessage() {
 	const timeString = formatTime(timestamp);
 
 	console.log(`\n[${timeString}] LEET TIME! Sending messages...`);
+
+	// Fetch random duck image
+	console.log('Fetching random duck image...');
+	const duckImageUrl = await getRandomDuckImage();
+
+	if (duckImageUrl) {
+		console.log(`Got duck image: ${duckImageUrl}`);
+	} else {
+		console.log('Failed to fetch duck image, will send text only');
+	}
 
 	let successCount = 0;
 	let failCount = 0;
@@ -104,7 +151,14 @@ async function sendLeetMessage() {
 			}
 
 			console.log(`Sending to: ${groupId}...`);
-			const result = await client.sendText(groupId, MESSAGE);
+
+			// Send image with caption if available, otherwise send text
+			let result;
+			if (duckImageUrl) {
+				result = await client.sendImage(groupId, duckImageUrl, 'duck.jpg', MESSAGE);
+			} else {
+				result = await client.sendText(groupId, MESSAGE);
+			}
 
 			console.log(`Sent successfully!`);
 			console.log(`   Message ID: ${result.id}`);
