@@ -1,0 +1,46 @@
+{
+	"name": "wp-fun",
+	"version": "1.0.0",
+	"description": "WhatsApp Bot using WPPConnect with modular architecture",
+	"main": "src/main.js",
+	"scripts": {
+		"start": "node src/main.js",
+		"dev": "NODE_ENV=development node src/main.js",
+		"prod": "NODE_ENV=production node src/main.js",
+		"restart": "npm run stop && npm start",
+		"stop": "pkill -f 'node src/main.js' || true",
+		"clear-session": "rm -rf tokens/* && echo 'Session data cleared'",
+		"clear-logs": "rm -rf logs/* && echo 'Logs cleared'",
+		"status": "ps aux | grep 'node src/main.js' | grep -v grep || echo 'Bot not running'",
+		"logs": "tail -f logs/bot.log",
+		"list-chats": "node scripts/listChats.js",
+		"simple-list": "node scripts/simpleList.js",
+		"find-groups": "node scripts/simpleList.js",
+		"test": "echo 'No tests specified yet'",
+		"lint": "echo 'No linting configured yet'"
+	},
+	"keywords": [
+		"whatsapp",
+		"bot",
+		"wppconnect",
+		"automation",
+		"messaging"
+	],
+	"author": "Your Name",
+	"license": "MIT",
+	"dependencies": {
+		"@wppconnect-team/wppconnect": "^1.37.5"
+	},
+	"devDependencies": {},
+	"engines": {
+		"node": ">=14.0.0"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/yourusername/wp-fun.git"
+	},
+	"bugs": {
+		"url": "https://github.com/yourusername/wp-fun/issues"
+	},
+	"homepage": "https://github.com/yourusername/wp-fun#readme"
+}
