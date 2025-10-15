@@ -230,6 +230,10 @@ async function startLeetScheduler() {
 			tokenStore: 'file', // Store tokens in file system
 			folderNameToken: './tokens', // Folder to save session tokens
 
+			puppeteerOptions: {
+				args: ['--no-sandbox', '--disable-setuid-sandbox']
+			},
+
 			// Callback for QR code
 			catchQR: (base64Qr, asciiQR, attempts, urlCode) => {
 				console.log('QR Code Attempts:', attempts);
