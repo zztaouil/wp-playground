@@ -15,7 +15,8 @@ const GROUP_IDS = [
 	'120363403690304718@g.us', // Replace with your group IDs
 	'120363421930545060@g.us',
 	'120363297987222618@g.us',
-	'120363421170347948@g.us'
+	'120363421170347948@g.us',
+	'120363419348107571@g.us',
 ];
 
 const MESSAGE = '23:37'; // Leet message!
@@ -126,7 +127,6 @@ async function getRandomDuckImage() {
 async function sendLeetMessage() {
 	// Prevent concurrent executions
 	if (isSending) {
-		console.log('Already sending messages, skipping...');
 		return;
 	}
 
@@ -136,18 +136,8 @@ async function sendLeetMessage() {
 		const timestamp = getCurrentTimeUTCPlus1();
 		const timeString = formatTime(timestamp);
 
-		console.log(`\n[${timeString}] LEET TIME! Sending messages...`);
-
-		// Fetch random duck image
-		console.log('Fetching random duck image...');
-		const duckImageUrl = await getRandomDuckImage();
-
-		if (duckImageUrl) {
-			console.log(`Got duck image: ${duckImageUrl}`);
-		} else {
-			console.log('Failed to fetch duck image, will send text only');
-		}
-
+		console.log(`\n[${timeString}] Sending messages...`);
+	
 		let successCount = 0;
 		let failCount = 0;
 
@@ -158,8 +148,7 @@ async function sendLeetMessage() {
 				const hour = timestamp.getHours().toString().padStart(2, '0');
 				const minute = timestamp.getMinutes().toString().padStart(2, '0');
 				const messageKey = `${dateKey}-${hour}:${minute}-${groupId}`;
-
-				console.log(messageKey)
+				const duckImageUrl = await getRandomDuckImage();
 
 				if (messagesSentToday.has(messageKey)) {
 					console.log(`Skipping ${groupId} (already sent today)`);
@@ -190,15 +179,6 @@ async function sendLeetMessage() {
 				failCount++;
 			}
 		}
-
-		console.log(`\nSummary:`);
-		console.log(`   Sent: ${successCount}`);
-		console.log(`   Failed: ${failCount}`);
-		console.log(`   Total groups: ${GROUP_IDS.length}`);
-
-		// Show next scheduled time
-		const nextLeet = getNextLeetTime();
-		console.log(`\nNext leet time: ${formatTime(nextLeet)}`);
 	} finally {
 		// Always reset the flag, even if there's an error
 		isSending = false;
@@ -234,8 +214,6 @@ function scheduleMidnightReset() {
 		messagesSentToday.clear();
 		scheduleMidnightReset(); // Schedule next reset
 	}, msUntilMidnight);
-
-	console.log(`Midnight reset scheduled in ${Math.round(msUntilMidnight / 1000 / 60)} minutes`);
 }
 
 /**
@@ -268,21 +246,6 @@ async function verifyGroups() {
 	}
 
 	return validGroups;
-}
-
-/**
- * Calculate time until next leet time
- */
-function getTimeUntilNextLeet() {
-	const now = getCurrentTimeUTCPlus1();
-	const next = getNextLeetTime();
-	const diff = next - now;
-
-	const hours = Math.floor(diff / 3600000);
-	const minutes = Math.floor((diff % 3600000) / 60000);
-	const seconds = Math.floor((diff % 60000) / 1000);
-
-	return { hours, minutes, seconds, total: diff };
 }
 
 /**
@@ -338,19 +301,6 @@ async function startLeetScheduler() {
 		// Verify all groups
 		await verifyGroups();
 
-		const now = getCurrentTimeUTCPlus1();
-		const nextLeet = getNextLeetTime();
-		const timeUntil = getTimeUntilNextLeet();
-
-		console.log('\nScheduler Configuration:');
-		console.log(`   Current time (UTC+${TIMEZONE_OFFSET}): ${formatTime(now)}`);
-		console.log(`   Target time: ${TARGET_HOUR}:${TARGET_MINUTE.toString().padStart(2, '0')} UTC+${TIMEZONE_OFFSET}`);
-		console.log(`   Message: "${MESSAGE}"`);
-		console.log(`   Groups: ${GROUP_IDS.length}`);
-		console.log(`\nTime until next leet time:`);
-		console.log(`   ${timeUntil.hours}h ${timeUntil.minutes}m ${timeUntil.seconds}s`);
-		console.log(`   Next occurrence: ${formatTime(nextLeet)}`);
-
 		console.log(`\nScheduler is running. Press Ctrl+C to stop.\n`);
 
 		// Start checking every second
@@ -361,16 +311,6 @@ async function startLeetScheduler() {
 
 		// Handle phone watchdog to ensure connection
 		client.startPhoneWatchdog(30000); // Check connection every 30 seconds
-
-		// Show periodic status updates every 5 minutes
-		setInterval(() => {
-			const timeUntil = getTimeUntilNextLeet();
-			const now = getCurrentTimeUTCPlus1();
-			console.log(`\n[${formatTime(now)}] Status update:`);
-			console.log(`   Time until next leet: ${timeUntil.hours}h ${timeUntil.minutes}m ${timeUntil.seconds}s`);
-			console.log(`   Messages sent today: ${messagesSentToday.size / GROUP_IDS.length} times to ${GROUP_IDS.length} groups`);
-		}, 300000); // Every 5 minutes
-
 	} catch (error) {
 		console.error('Fatal error:', error.message);
 		console.error(error);
