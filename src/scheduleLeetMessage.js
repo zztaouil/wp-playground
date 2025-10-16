@@ -1,4 +1,5 @@
 const wppconnect = require('@wppconnect-team/wppconnect');
+const { send } = require('process');
 
 /**
  * Script to send "13:37" message at exactly 13:37 UTC+1 (leet time!)
@@ -12,12 +13,13 @@ const wppconnect = require('@wppconnect-team/wppconnect');
 // ============ CONFIGURATION ============
 const GROUP_IDS = [
 	'120363403690304718@g.us', // Replace with your group IDs
+	'120363421930545060@g.us',
 	'120363297987222618@g.us',
 	'120363421170347948@g.us'
 ];
 
-const MESSAGE = '13:37'; // Leet message!
-const TARGET_HOUR = 13; // 13:37 hour
+const MESSAGE = '23:37'; // Leet message!
+const TARGET_HOUR = 23; // 13:37 hour
 const TARGET_MINUTE = 37; // 13:37 minute
 const TIMEZONE_OFFSET = 1; // UTC+1 (in hours)
 // =======================================
@@ -25,6 +27,7 @@ const TIMEZONE_OFFSET = 1; // UTC+1 (in hours)
 let client = null;
 let checkInterval = null;
 let messagesSentToday = new Set(); // Track which groups received message today
+let isSending = false; // Prevent concurrent message sends
 
 /**
  * Get current time in UTC+1
@@ -121,68 +124,85 @@ async function getRandomDuckImage() {
  * Send message to all configured groups
  */
 async function sendLeetMessage() {
-	const timestamp = getCurrentTimeUTCPlus1();
-	const timeString = formatTime(timestamp);
-
-	console.log(`\n[${timeString}] LEET TIME! Sending messages...`);
-
-	// Fetch random duck image
-	console.log('Fetching random duck image...');
-	const duckImageUrl = await getRandomDuckImage();
-
-	if (duckImageUrl) {
-		console.log(`Got duck image: ${duckImageUrl}`);
-	} else {
-		console.log('Failed to fetch duck image, will send text only');
+	// Prevent concurrent executions
+	if (isSending) {
+		console.log('Already sending messages, skipping...');
+		return;
 	}
 
-	let successCount = 0;
-	let failCount = 0;
+	isSending = true;
 
-	for (const groupId of GROUP_IDS) {
-		try {
-			// Check if already sent to this group today
-			const dateKey = timestamp.toISOString().split('T')[0];
-			const messageKey = `${dateKey}-${groupId}`;
+	try {
+		const timestamp = getCurrentTimeUTCPlus1();
+		const timeString = formatTime(timestamp);
 
-			if (messagesSentToday.has(messageKey)) {
-				console.log(`Skipping ${groupId} (already sent today)`);
-				continue;
-			}
+		console.log(`\n[${timeString}] LEET TIME! Sending messages...`);
 
-			console.log(`Sending to: ${groupId}...`);
+		// Fetch random duck image
+		console.log('Fetching random duck image...');
+		const duckImageUrl = await getRandomDuckImage();
 
-			// Send image with caption if available, otherwise send text
-			let result;
-			if (duckImageUrl) {
-				result = await client.sendImage(groupId, duckImageUrl, 'duck.jpg', MESSAGE);
-			} else {
-				result = await client.sendText(groupId, MESSAGE);
-			}
-
-			console.log(`Sent successfully!`);
-			console.log(`   Message ID: ${result.id}`);
-
-			messagesSentToday.add(messageKey);
-			successCount++;
-
-			// Small delay between messages to avoid rate limiting
-			await new Promise(resolve => setTimeout(resolve, 1000));
-
-		} catch (error) {
-			console.error(`Failed to send to ${groupId}:`, error.message);
-			failCount++;
+		if (duckImageUrl) {
+			console.log(`Got duck image: ${duckImageUrl}`);
+		} else {
+			console.log('Failed to fetch duck image, will send text only');
 		}
+
+		let successCount = 0;
+		let failCount = 0;
+
+		for (const groupId of GROUP_IDS) {
+			try {
+				// Check if already sent to this group today
+				const dateKey = timestamp.toISOString().split('T')[0];
+				const hour = timestamp.getHours().toString().padStart(2, '0');
+				const minute = timestamp.getMinutes().toString().padStart(2, '0');
+				const messageKey = `${dateKey}-${hour}:${minute}-${groupId}`;
+
+				console.log(messageKey)
+
+				if (messagesSentToday.has(messageKey)) {
+					console.log(`Skipping ${groupId} (already sent today)`);
+					continue;
+				}
+
+				console.log(`Sending to: ${groupId}...`);
+
+				// Send image with caption if available, otherwise send text
+				let result;
+				if (duckImageUrl) {
+					result = await client.sendImage(groupId, duckImageUrl, 'duck.jpg', MESSAGE);
+				} else {
+					result = await client.sendText(groupId, MESSAGE);
+				}
+
+				console.log(`Sent successfully!`);
+				console.log(`   Message ID: ${result.id}`);
+
+				messagesSentToday.add(messageKey);
+				successCount++;
+
+				// Small delay between messages to avoid rate limiting
+				await new Promise(resolve => setTimeout(resolve, 1000));
+
+			} catch (error) {
+				console.error(`Failed to send to ${groupId}:`, error.message);
+				failCount++;
+			}
+		}
+
+		console.log(`\nSummary:`);
+		console.log(`   Sent: ${successCount}`);
+		console.log(`   Failed: ${failCount}`);
+		console.log(`   Total groups: ${GROUP_IDS.length}`);
+
+		// Show next scheduled time
+		const nextLeet = getNextLeetTime();
+		console.log(`\nNext leet time: ${formatTime(nextLeet)}`);
+	} finally {
+		// Always reset the flag, even if there's an error
+		isSending = false;
 	}
-
-	console.log(`\nSummary:`);
-	console.log(`   Sent: ${successCount}`);
-	console.log(`   Failed: ${failCount}`);
-	console.log(`   Total groups: ${GROUP_IDS.length}`);
-
-	// Show next scheduled time
-	const nextLeet = getNextLeetTime();
-	console.log(`\nNext leet time: ${formatTime(nextLeet)}`);
 }
 
 /**
@@ -397,5 +417,52 @@ process.on('unhandledRejection', (error) => {
 	cleanup();
 });
 
+/**
+ * Test function - sends a single message immediately after connecting
+ */
+async function testSendMessage() {
+	console.log('Starting test mode - will send message once...');
+	console.log('Session will be saved to ./tokens folder\n');
+
+	try {
+		// Create WhatsApp client
+		client = await wppconnect.create({
+			session: 'main',
+			headless: true,
+			logQR: true,
+			disableWelcome: true,
+			updatesLog: false,
+			autoClose: 0,
+			tokenStore: 'file',
+			folderNameToken: './tokens',
+			puppeteerOptions: {
+				args: ['--no-sandbox', '--disable-setuid-sandbox']
+			},
+		});
+
+		console.log('Client initialized successfully!\n');
+
+		// Verify groups
+		await verifyGroups();
+
+		// Send the message
+		await sendLeetMessage();
+
+		// Cleanup and exit
+		setTimeout(async () => {
+			await cleanup();
+		}, 2000);
+
+	} catch (error) {
+		console.error('Fatal error:', error.message);
+		console.error(error);
+		cleanup();
+		process.exit(1);
+	}
+}
+
 // Start the scheduler
 startLeetScheduler();
+
+// Test mode - send one message
+// testSendMessage();
