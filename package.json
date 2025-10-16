@@ -29,9 +29,10 @@
 	"author": "Your Name",
 	"license": "MIT",
 	"dependencies": {
-		"@wppconnect-team/wppconnect": "^1.37.5"
+		"@wppconnect-team/wppconnect": "^1.37.5",
+		"jimp": "^1.6.0",
+		"node-cron": "^4.2.1"
 	},
-	"devDependencies": {},
 	"engines": {
 		"node": ">=14.0.0"
 	},

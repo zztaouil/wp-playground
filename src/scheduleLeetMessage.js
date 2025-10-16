@@ -1,13 +1,15 @@
 const wppconnect = require('@wppconnect-team/wppconnect');
 const { send } = require('process');
+const cron = require('node-cron');
 
 /**
- * Script to send "13:37" message at exactly 13:37 UTC+1 (leet time!)
+ * Script to send "23:37" message at exactly 23:37 UTC+1 (leet time!)
  * 
  * Configuration:
  * - Set your GROUP_IDS array below
- * - Message will be sent every day at 13:37 UTC+1
+ * - Message will be sent every day at 23:37 UTC+1
  * - Time zone: UTC+1 (CET/CEST)
+ * - Uses node-cron for reliable scheduling
  */
 
 // ============ CONFIGURATION ============
@@ -19,14 +21,14 @@ const GROUP_IDS = [
 	'120363419348107571@g.us',
 ];
 
-const MESSAGE = '23:37'; // Leet message!
-const TARGET_HOUR = 23; // 13:37 hour
+const MESSAGE = '13:37'; // Leet message!
+const TARGET_HOUR = 13; // 13:37 hour
 const TARGET_MINUTE = 37; // 13:37 minute
 const TIMEZONE_OFFSET = 1; // UTC+1 (in hours)
 // =======================================
 
 let client = null;
-let checkInterval = null;
+let cronJob = null;
 let messagesSentToday = new Set(); // Track which groups received message today
 let isSending = false; // Prevent concurrent message sends
 
@@ -53,35 +55,6 @@ function formatTime(date) {
 		timeZone: 'UTC',
 		timeZoneName: 'short'
 	});
-}
-
-/**
- * Check if it's time to send the message (13:37 UTC+1)
- */
-function isLeetTime() {
-	const now = getCurrentTimeUTCPlus1();
-	const hour = now.getHours();
-	const minute = now.getMinutes();
-
-	return hour === TARGET_HOUR && minute === TARGET_MINUTE;
-}
-
-/**
- * Get next leet time occurrence
- */
-function getNextLeetTime() {
-	const now = getCurrentTimeUTCPlus1();
-	const next = new Date(now);
-
-	next.setHours(TARGET_HOUR, TARGET_MINUTE, 0, 0);
-
-	// If we've passed 13:37 today, schedule for tomorrow
-	if (now.getHours() > TARGET_HOUR ||
-		(now.getHours() === TARGET_HOUR && now.getMinutes() >= TARGET_MINUTE)) {
-		next.setDate(next.getDate() + 1);
-	}
-
-	return next;
 }
 
 /**
@@ -137,7 +110,7 @@ async function sendLeetMessage() {
 		const timeString = formatTime(timestamp);
 
 		console.log(`\n[${timeString}] Sending messages...`);
-	
+
 		let successCount = 0;
 		let failCount = 0;
 
@@ -154,8 +127,6 @@ async function sendLeetMessage() {
 					console.log(`Skipping ${groupId} (already sent today)`);
 					continue;
 				}
-
-				console.log(`Sending to: ${groupId}...`);
 
 				// Send image with caption if available, otherwise send text
 				let result;
@@ -179,6 +150,8 @@ async function sendLeetMessage() {
 				failCount++;
 			}
 		}
+	} catch (error) {
+		console.error('Error in sendLeetMessage:', error.message);
 	} finally {
 		// Always reset the flag, even if there's an error
 		isSending = false;
@@ -186,34 +159,18 @@ async function sendLeetMessage() {
 }
 
 /**
- * Check every second if it's leet time
- */
-function checkAndSendIfLeetTime() {
-	const now = getCurrentTimeUTCPlus1();
-	const currentSecond = now.getSeconds();
-
-	// Only check at the beginning of the minute (0-5 seconds window)
-	if (currentSecond <= 5 && isLeetTime()) {
-		sendLeetMessage();
-	}
-}
-
-/**
  * Reset daily message tracker at midnight
  */
 function scheduleMidnightReset() {
-	const now = getCurrentTimeUTCPlus1();
-	const tomorrow = new Date(now);
-	tomorrow.setHours(0, 0, 0, 0);
-	tomorrow.setDate(tomorrow.getDate() + 1);
-
-	const msUntilMidnight = tomorrow - now;
-
-	setTimeout(() => {
-		console.log('\nMidnight reset - clearing message history');
+	// Schedule cron job for midnight UTC+1 (00:00)
+	const midnightCron = cron.schedule('0 0 * * *', () => {
 		messagesSentToday.clear();
-		scheduleMidnightReset(); // Schedule next reset
-	}, msUntilMidnight);
+	}, {
+		scheduled: true,
+		timezone: 'Etc/GMT-1' // UTC+1
+	});
+
+	return midnightCron;
 }
 
 /**
@@ -249,11 +206,10 @@ async function verifyGroups() {
 }
 
 /**
- * Start the leet time scheduler
+ * Start the leet time scheduler using node-cron
  */
 async function startLeetScheduler() {
-	console.log('Starting 13:37 Leet Time Scheduler...');
-	console.log('Session will be saved to ./tokens folder\n');
+	console.log('Starting scheduler...');
 
 	try {
 		// Create WhatsApp client
@@ -301,10 +257,15 @@ async function startLeetScheduler() {
 		// Verify all groups
 		await verifyGroups();
 
-		console.log(`\nScheduler is running. Press Ctrl+C to stop.\n`);
+		console.log(`\nScheduler is running. Press Ctrl+C to stop.`);
 
-		// Start checking every second
-		checkInterval = setInterval(checkAndSendIfLeetTime, 1000);
+		// Schedule the message using cron
+		cronJob = cron.schedule(`${TARGET_MINUTE} ${TARGET_HOUR} * * *`, async () => {
+			await sendLeetMessage();
+		}, {
+			scheduled: true,
+			timezone: 'Etc/GMT-1' // UTC+1 timezone
+		});
 
 		// Schedule midnight reset
 		scheduleMidnightReset();
@@ -325,9 +286,9 @@ async function startLeetScheduler() {
 async function cleanup() {
 	console.log('\n\nStopping scheduler...');
 
-	if (checkInterval) {
-		clearInterval(checkInterval);
-		console.log('Stopped time checker');
+	if (cronJob) {
+		cronJob.stop();
+		console.log('Stopped cron job');
 	}
 
 	if (client) {
