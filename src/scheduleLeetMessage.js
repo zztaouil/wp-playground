@@ -183,7 +183,7 @@ async function sendLeetMessage() {
 				successCount++;
 
 				// Small delay between messages to avoid rate limiting
-				await new Promise(resolve => setTimeout(resolve, 1000));
+				await new Promise(resolve => setTimeout(resolve, 5000));
 
 			} catch (error) {
 				console.error(`Failed to send to ${groupId}:`, error.message);
