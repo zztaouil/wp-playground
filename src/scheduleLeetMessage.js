@@ -3,7 +3,7 @@ const { send } = require('process');
 const cron = require('node-cron');
 
 /**
- * Script to send "23:37" message at exactly 23:37 UTC+1 (leet time!)
+ * Script to send "13:37" message at exactly 13:37 UTC+1 (leet time!)
  * 
  * Configuration:
  * - Set your GROUP_IDS array below
@@ -29,8 +29,6 @@ const TIMEZONE_OFFSET = 1; // UTC+1 (in hours)
 
 let client = null;
 let cronJob = null;
-let messagesSentToday = new Set(); // Track which groups received message today
-let isSending = false; // Prevent concurrent message sends
 
 /**
  * Get current time in UTC+1
@@ -98,13 +96,6 @@ async function getRandomDuckImage() {
  * Send message to all configured groups
  */
 async function sendLeetMessage() {
-	// Prevent concurrent executions
-	if (isSending) {
-		return;
-	}
-
-	isSending = true;
-
 	try {
 		const timestamp = getCurrentTimeUTCPlus1();
 		const timeString = formatTime(timestamp);
@@ -120,26 +111,25 @@ async function sendLeetMessage() {
 				const dateKey = timestamp.toISOString().split('T')[0];
 				const hour = timestamp.getHours().toString().padStart(2, '0');
 				const minute = timestamp.getMinutes().toString().padStart(2, '0');
-				const messageKey = `${dateKey}-${hour}:${minute}-${groupId}`;
 				const duckImageUrl = await getRandomDuckImage();
 
-				if (messagesSentToday.has(messageKey)) {
-					console.log(`Skipping ${groupId} (already sent today)`);
-					continue;
-				}
-
-				// Send image with caption if available, otherwise send text
+				// switched image to view-once, sending image first them leet message.
 				let result;
 				if (duckImageUrl) {
-					result = await client.sendImage(groupId, duckImageUrl, 'duck.jpg', MESSAGE);
-				} else {
-					result = await client.sendText(groupId, MESSAGE);
-				}
+					result = await client.sendImage(
+						groupId,           // to
+						duckImageUrl,      // filePath (or URL)
+						'duck.jpg',        // filename
+						'',           	   // caption
+						undefined,         // quotedMessageId
+						true               // isViewOnce
+					);
+				} 
+				result = await client.sendText(groupId, MESSAGE);
 
 				console.log(`Sent successfully!`);
 				console.log(`   Message ID: ${result.id}`);
 
-				messagesSentToday.add(messageKey);
 				successCount++;
 
 				// Small delay between messages to avoid rate limiting
@@ -152,57 +142,7 @@ async function sendLeetMessage() {
 		}
 	} catch (error) {
 		console.error('Error in sendLeetMessage:', error.message);
-	} finally {
-		// Always reset the flag, even if there's an error
-		isSending = false;
 	}
-}
-
-/**
- * Reset daily message tracker at midnight
- */
-function scheduleMidnightReset() {
-	// Schedule cron job for midnight UTC+1 (00:00)
-	const midnightCron = cron.schedule('0 0 * * *', () => {
-		messagesSentToday.clear();
-	}, {
-		scheduled: true,
-		timezone: 'Etc/GMT-1' // UTC+1
-	});
-
-	return midnightCron;
-}
-
-/**
- * Verify all groups exist
- */
-async function verifyGroups() {
-	console.log('\nVerifying groups...');
-
-	const validGroups = [];
-	const invalidGroups = [];
-
-	for (const groupId of GROUP_IDS) {
-		try {
-			const chat = await client.getChatById(groupId);
-			console.log(`${chat.name || 'Unnamed Group'} (${groupId})`);
-			console.log(`   Participants: ${chat.groupMetadata?.participants?.length || 'N/A'}`);
-			validGroups.push(groupId);
-		} catch (error) {
-			console.error(`Invalid group: ${groupId}`);
-			invalidGroups.push(groupId);
-		}
-	}
-
-	console.log(`\nGroups verified:`);
-	console.log(`   Valid: ${validGroups.length}`);
-	console.log(`   Invalid: ${invalidGroups.length}`);
-
-	if (validGroups.length === 0) {
-		throw new Error('No valid groups found! Please check your GROUP_IDS configuration.');
-	}
-
-	return validGroups;
 }
 
 /**
@@ -252,11 +192,6 @@ async function startLeetScheduler() {
 			},
 		});
 
-		console.log('Client initialized successfully!\n');
-
-		// Verify all groups
-		await verifyGroups();
-
 		console.log(`\nScheduler is running. Press Ctrl+C to stop.`);
 
 		// Schedule the message using cron
@@ -266,9 +201,6 @@ async function startLeetScheduler() {
 			scheduled: true,
 			timezone: 'Etc/GMT-1' // UTC+1 timezone
 		});
-
-		// Schedule midnight reset
-		scheduleMidnightReset();
 
 		// Handle phone watchdog to ensure connection
 		client.startPhoneWatchdog(30000); // Check connection every 30 seconds
@@ -299,11 +231,6 @@ async function cleanup() {
 			console.error('Error closing client:', error.message);
 		}
 	}
-
-	console.log(`\nSession Stats:`);
-	console.log(`   Total message batches sent: ${messagesSentToday.size / GROUP_IDS.length}`);
-	console.log(`   Total individual messages: ${messagesSentToday.size}`);
-	console.log('\nGoodbye!\n');
 
 	process.exit(0);
 }
@@ -342,9 +269,6 @@ async function testSendMessage() {
 		});
 
 		console.log('Client initialized successfully!\n');
-
-		// Verify groups
-		await verifyGroups();
 
 		// Send the message
 		await sendLeetMessage();
