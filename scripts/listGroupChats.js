@@ -50,10 +50,11 @@ async function listGroupChats() {
 		console.log('Fetching group chats...\n');
 
 		// Get all chats
-		const allChats = await client.getAllChats();
+		const allChats = await client.listChats();
 
 		// Filter only group chats (groups have '@g.us' in their ID)
-		const groupChats = allChats.filter(chat => chat.isGroup);
+		// const groupChats = allChats.filter(chat => chat.isGroup);
+		const groupChats = allChats;
 
 		console.log(`\n📊 Found ${groupChats.length} group chat(s):\n`);
 		console.log('='.repeat(80));

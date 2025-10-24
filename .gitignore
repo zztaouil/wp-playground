@@ -101,6 +101,9 @@ public
 # Temporary folders
 tmp/
 temp/
+tmp.out
+
+package-lock.json
 
 group_ids.txt
 
