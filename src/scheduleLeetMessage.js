@@ -115,6 +115,7 @@ async function sendLeetMessage() {
 
 				// switched image to view-once, sending image first them leet message.
 				let result;
+				result = await client.sendText(groupId, MESSAGE);
 				if (duckImageUrl) {
 					result = await client.sendImage(
 						groupId,           // to
@@ -125,7 +126,6 @@ async function sendLeetMessage() {
 						true               // isViewOnce
 					);
 				} 
-				result = await client.sendText(groupId, MESSAGE);
 
 				console.log(`Sent successfully!`);
 				console.log(`   Message ID: ${result.id}`);
